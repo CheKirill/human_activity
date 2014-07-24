@@ -1,19 +1,12 @@
 #!/usr/bin/env Rscript
 
-# Merges the training and the test sets to create one data set.
-# Extracts only the measurements on the mean and standard deviation for each measurement. 
-# Uses descriptive activity names to name the activities in the data set
-# Appropriately labels the data set with descriptive variable names. 
-# Creates a second, independent tidy data set with the average of each variable for each activity and each subject. 
 
-SAMSUNG_DATASET_DIR <- "UCI_HAR_Dataset"
+SAMSUNG_DATASET_DIR <- "UCI HAR Dataset"
 
-load_mean_std_features <- function(features_file_name) {
-    # Load names of measurements (features) from file with
-    # its indexes and names which passed via argument features_file_name.
-    # Then search for "mean" and "std" measurements and return its
-    # indexes and names as a list.
-    
+TIDY_DATASET_FILE_NAME <- "samsung_human_activities.txt"
+
+
+load_mean_std_features <- function(features_file_name) {    
     features_names <- read.table(file = features_file_name, 
                                  header = FALSE,
                                  sep = " ",
@@ -22,7 +15,7 @@ load_mean_std_features <- function(features_file_name) {
     
     mean_std_inds <- grep("(mean|std)", features_names[, 2], perl=TRUE)
     list(indexes = features_names[mean_std_inds, 1],
-         names = features_names[mean_std_inds, 2])
+         names = sub("()", "", features_names[mean_std_inds, 2], fixed=TRUE))
 }
 
 
@@ -47,15 +40,10 @@ function(X_file_name, y_file_name, subject_file_name, mean_std_ftrs, activities)
 
     raw_y_data <- as.integer(readLines(y_file_name))
     y_data <- activities[raw_y_data]
-    subject_data <- readLines(subject_file_name)
+    subject_data <- as.integer(readLines(subject_file_name))
     cbind(X_data, activity=y_data, subject=subject_data)
 }
 
-features_list_file <- file.path(SAMSUNG_DATASET_DIR, "features.txt")
-mean_std_features <- load_mean_std_features(features_list_file)
-
-activity_labels_file <- file.path(SAMSUNG_DATASET_DIR, "activity_labels.txt")
-activities <- load_activity_labels(activity_labels_file)
 
 load_item_data <- function(dataset_dir, item, ...) {
     x_file = file.path(dataset_dir, item, paste("X_", item, ".txt", sep=""))
@@ -64,10 +52,20 @@ load_item_data <- function(dataset_dir, item, ...) {
     load_samsung_data(x_file, y_file, subj_file, ...)
 }
 
-train_data <- load_item_data(SAMSUNG_DATASET_DIR, "train", mean_std_ftrs, activities)
-test_data <- load_item_data(SAMSUNG_DATASET_DIR, "test", mean_std_ftrs, activities)
+
+features_list_file <- file.path(SAMSUNG_DATASET_DIR, "features.txt")
+mean_std_features <- load_mean_std_features(features_list_file)
+
+activity_labels_file <- file.path(SAMSUNG_DATASET_DIR, "activity_labels.txt")
+activities <- load_activity_labels(activity_labels_file)
+
+train_data <- load_item_data(SAMSUNG_DATASET_DIR, "train", mean_std_features, activities)
+test_data <- load_item_data(SAMSUNG_DATASET_DIR, "test", mean_std_features, activities)
 samsung_data <- rbind(test_data, train_data)
 
-result_data <- aggregate(formula= . ~ activity + subject, data=samsung_data, FUN=mean)
+result_data <- aggregate(formula= . ~ subject + activity, data=samsung_data, FUN=mean)
+result_data <- result_data[order(result_data$subject, result_data$activity),]
+rm(train_data, test_data, samsung_data)
 
+write.table(result_data, TIDY_DATASET_FILE_NAME, sep="\t", quote = FALSE, row.names = FALSE)
 
